@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25);
+            padding: 50px;
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 { color: #667eea; margin-bottom: 10px; font-size: 2.8em; text-align: center; }
+        .subtitle { color: #6b7280; text-align: center; margin-bottom: 30px; }
+        .warning-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        .input-group { display: flex; gap: 12px; margin-bottom: 30px; }
+        input[type="text"] {
+            flex: 1;
+            padding: 18px 24px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            font-size: 16px;
+        }
+        .btn {
+            padding: 18px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .loading { display: none; text-align: center; padding: 30px; }
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .error { display: none; padding: 20px; border-radius: 14px; margin-bottom: 20px; }
+        .video-info { display: none; }
+        .video-preview {
+            display: flex;
+            gap: 25px;
+            padding: 25px;
+            background: #f9fafb;
+            border-radius: 16px;
+            margin-bottom: 30px;
+        }
+        .video-preview img { width: 240px; border-radius: 12px; }
+        .stream-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        .download-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        @media (max-width: 768px) {
+            .container { padding: 30px 20px; }
+            .input-group { flex-direction: column; }
+            .video-preview { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 YouTube Downloader</h1>
+        <p class="subtitle">Download video dan audio dengan mudah</p>
+        
+        <div class="warning-box">⚠️ Gunakan dengan bijak. Hormati hak cipta!</div>
+        
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="Paste URL YouTube di sini..." />
+            <button class="btn" onclick="getVideoInfo()">🔍 Cari</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Memuat video...</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="video-info" id="videoInfo">
+            <div class="video-preview">
+                <img id="thumbnail" src="" />
+                <div>
+                    <h3 id="title"></h3>
+                    <p id="author"></p>
+                    <p id="duration"></p>
+                </div>
+            </div>
+            <div id="videoStreams"></div>
+            <div id="audioStreams"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentUrl = '';
+    
+        async function getVideoInfo() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) return alert('Masukkan URL!');
+            
+            currentUrl = url;
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('videoInfo').style.display = 'none';
+            
+            const res = await fetch('/get-info', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({url})
+            });
+            
+            const data = await res.json();
+            document.getElementById('loading').style.display = 'none';
+            
+            if (!res.ok) return alert(data.error || 'Gagal mengambil info video');
+            
+            document.getElementById('thumbnail').src = data.thumbnail;
+            document.getElementById('title').textContent = data.title;
+            document.getElementById('author').textContent = data.author;
+            document.getElementById('duration').textContent = data.duration;
+            
+            document.getElementById('videoStreams').innerHTML = data.video_streams
+                .map(s => `
+                    <div class="stream-item">
+                        <span>${s.resolution} - ${s.filesize}</span>
+                        <button class="download-btn" onclick="downloadStream('${s.format_id}', '${s.ext || "mp4"}')">
+                            ⬇️ Download
+                        </button>
+                    </div>`
+                ).join('');
+            
+            document.getElementById('audioStreams').innerHTML = data.audio_streams
+                .map(s => `
+                    <div class="stream-item">
+                        <span>${s.abr} - ${s.filesize}</span>
+                        <button class="download-btn" onclick="downloadStream('${s.format_id}', '${s.ext || "m4a"}')">
+                            ⬇️ Download
+                        </button>
+                    </div>`
+                ).join('');
+            
+            document.getElementById('videoInfo').style.display = 'block';
+        }
+    
+        async function downloadStream(formatId, ext) {
+            if (!currentUrl) {
+                alert('URL tidak ditemukan. Klik cari dulu.');
+                return;
+            }
+    
+            try {
+                const res = await fetch('/download', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url: currentUrl, format_id: formatId})
+                });
+    
+                // kalau backend kirim error JSON
+                if (!res.ok) {
+                    let errMsg = 'Download gagal!';
+                    try {
+                        const err = await res.json();
+                        if (err.error) errMsg = err.error;
+                    } catch (_) {}
+                    alert(errMsg);
+                    return;
+                }
+    
+                const blob = await res.blob();
+                const downloadUrl = URL.createObjectURL(blob);
+    
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `youtube.${ext}`;  // bisa kamu ganti nanti
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(downloadUrl);
+    
+                alert('Download dimulai. Cek folder download browser kamu.');
+    
+            } catch (e) {
+                console.error(e);
+                alert('Terjadi error saat menghubungi server.');
+            }
+        }
+    </script>
+    
+</body>
+</html>
